@@ -38,7 +38,10 @@ show_menu() {
   echo -e "  ${CYAN}4${NC}. Запустить бота (Sandbox — тестовый режим)"
   echo -e "  ${CYAN}5${NC}. Запустить бота (Production — реальные сделки)"
   echo -e "  ${CYAN}6${NC}. Dry-run: только сигналы, без сделок"
-  echo -e "  ${CYAN}7${NC}. Выход"
+  echo -e "  ${CYAN}7${NC}. Полный автомат Sandbox (авто-перезапуск + дневной лимит)"
+  echo -e "  ${CYAN}8${NC}. Полный автомат Production (авто-перезапуск + дневной лимит)"
+  echo -e "  ${CYAN}9${NC}. Статус риск-менеджера за сегодня"
+  echo -e "  ${CYAN}0${NC}. Выход"
   echo
 }
 
@@ -50,7 +53,7 @@ run_with_pause() {
 
 while true; do
   show_menu
-  read -rp "Ваш выбор (1-7): " CHOICE
+  read -rp "Ваш выбор (0-9): " CHOICE
   case "$CHOICE" in
     1)
       clear
@@ -101,6 +104,36 @@ while true; do
       read -rp "Нажмите Enter для возврата в меню..."
       ;;
     7)
+      clear
+      echo "--- Полный автомат: Sandbox ---"
+      echo "Для остановки нажмите Ctrl+C"
+      echo
+      TRADING_MODE=sandbox python main.py auto || true
+      read -rp "Нажмите Enter для возврата в меню..."
+      ;;
+    8)
+      clear
+      echo -e "${RED}${BOLD}"
+      echo "  [!] ВНИМАНИЕ: Production выполняет РЕАЛЬНЫЕ сделки!"
+      echo -e "${NC}"
+      read -rp "Введите YES для подтверждения: " CONFIRM
+      if [[ "$CONFIRM" == "YES" ]]; then
+        echo "--- Полный автомат: Production ---"
+        echo "Для остановки нажмите Ctrl+C"
+        echo
+        TRADING_MODE=production python main.py auto || true
+      else
+        echo "Отменено."
+        sleep 1
+      fi
+      read -rp "Нажмите Enter для возврата в меню..."
+      ;;
+    9)
+      clear
+      echo "--- Статус риск-менеджера за сегодня ---"
+      run_with_pause python main.py risk-status
+      ;;
+    0)
       echo "Выход."
       break
       ;;

@@ -1,9 +1,19 @@
 import os
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
+from typing import Optional
+
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _parse_decimal(env_var: str, default: Optional[str] = None) -> Optional[Decimal]:
+    raw = os.getenv(env_var, default)
+    if raw is None or raw.strip() == "":
+        return None
+    return Decimal(raw.strip())
 
 
 @dataclass
@@ -35,6 +45,18 @@ class Config:
     )
     rsi_overbought: float = field(
         default_factory=lambda: float(os.getenv("RSI_OVERBOUGHT", "70"))
+    )
+    # Risk management
+    max_daily_loss: Optional[Decimal] = field(
+        default_factory=lambda: _parse_decimal("MAX_DAILY_LOSS")
+    )
+    # Auto mode: задержка перед перезапуском после ошибки (сек.)
+    auto_restart_delay: int = field(
+        default_factory=lambda: int(os.getenv("AUTO_RESTART_DELAY", "30"))
+    )
+    # Интервал вывода статуса риск-менеджера в лог (секунды, 0 = выключено)
+    status_interval: int = field(
+        default_factory=lambda: int(os.getenv("STATUS_INTERVAL", "300"))
     )
 
     @property
