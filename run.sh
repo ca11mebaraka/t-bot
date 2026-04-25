@@ -10,6 +10,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 err() { echo -e "${RED}[ОШИБКА]${NC} $*" >&2; exit 1; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 
 # ── Проверки перед запуском ───────────────────────────────────────────────────
 [[ -d ".venv" ]]  || err "Виртуальное окружение не найдено. Запустите: ./setup.sh"
@@ -24,6 +25,28 @@ if grep -q "your_token_here" .env 2>/dev/null; then
   echo "Откройте .env и вставьте реальный токен T-Инвестиций."
   echo
 fi
+
+if grep -q "^LLM_ENABLED=true" .env 2>/dev/null; then
+  warn "В .env включён LLM_ENABLED=true. Обычные пункты меню тоже будут использовать LLM-режим."
+  echo "Для rule-based MA/RSI режима поставьте LLM_ENABLED=false или используйте отдельные LLM-пункты ниже."
+  echo
+fi
+
+confirm_production() {
+  echo -e "${RED}${BOLD}"
+  echo "  [!] ВНИМАНИЕ: Production выполняет РЕАЛЬНЫЕ сделки!"
+  echo -e "${NC}"
+  read -rp "Введите YES для подтверждения: " CONFIRM
+  [[ "$CONFIRM" == "YES" ]]
+}
+
+show_llm_hint() {
+  echo "LLM-настройки читаются из .env:"
+  echo "  LLM_PROVIDER, LLM_MODEL, *_API_KEY, LLM_MAX_LOTS, LLM_DECISION_INTERVAL"
+  echo "Запросы и ответы модели показываются при LLM_SHOW_PROMPTS=true."
+  echo "Агрессивность во время сессии: + Enter / - Enter или файл AGGRESSION_CONTROL_FILE."
+  echo
+}
 
 # ── Меню ─────────────────────────────────────────────────────────────────────
 show_menu() {
@@ -41,6 +64,12 @@ show_menu() {
   echo -e "  ${CYAN}7${NC}. Полный автомат Sandbox (авто-перезапуск + дневной лимит)"
   echo -e "  ${CYAN}8${NC}. Полный автомат Production (авто-перезапуск + дневной лимит)"
   echo -e "  ${CYAN}9${NC}. Статус риск-менеджера за сегодня"
+  echo
+  echo -e "  ${CYAN}10${NC}. LLM dry-run: решения модели без сделок"
+  echo -e "  ${CYAN}11${NC}. LLM Sandbox"
+  echo -e "  ${CYAN}12${NC}. LLM Production — реальные сделки"
+  echo -e "  ${CYAN}13${NC}. LLM Auto Sandbox"
+  echo -e "  ${CYAN}14${NC}. LLM Auto Production — реальные сделки"
   echo -e "  ${CYAN}0${NC}. Выход"
   echo
 }
@@ -53,7 +82,7 @@ run_with_pause() {
 
 while true; do
   show_menu
-  read -rp "Ваш выбор (0-9): " CHOICE
+  read -rp "Ваш выбор (0-14): " CHOICE
   case "$CHOICE" in
     1)
       clear
@@ -80,11 +109,7 @@ while true; do
       ;;
     5)
       clear
-      echo -e "${RED}${BOLD}"
-      echo "  [!] ВНИМАНИЕ: Production выполняет РЕАЛЬНЫЕ сделки!"
-      echo -e "${NC}"
-      read -rp "Введите YES для подтверждения: " CONFIRM
-      if [[ "$CONFIRM" == "YES" ]]; then
+      if confirm_production; then
         echo "--- Запуск в Production ---"
         echo "Для остановки нажмите Ctrl+C"
         echo
@@ -113,11 +138,7 @@ while true; do
       ;;
     8)
       clear
-      echo -e "${RED}${BOLD}"
-      echo "  [!] ВНИМАНИЕ: Production выполняет РЕАЛЬНЫЕ сделки!"
-      echo -e "${NC}"
-      read -rp "Введите YES для подтверждения: " CONFIRM
-      if [[ "$CONFIRM" == "YES" ]]; then
+      if confirm_production; then
         echo "--- Полный автомат: Production ---"
         echo "Для остановки нажмите Ctrl+C"
         echo
@@ -132,6 +153,61 @@ while true; do
       clear
       echo "--- Статус риск-менеджера за сегодня ---"
       run_with_pause python main.py risk-status
+      ;;
+    10)
+      clear
+      echo "--- LLM dry-run: решения модели без сделок ---"
+      show_llm_hint
+      echo "Для остановки нажмите Ctrl+C"
+      echo
+      LLM_ENABLED=true python main.py trade --dry-run || true
+      read -rp "Нажмите Enter для возврата в меню..."
+      ;;
+    11)
+      clear
+      echo "--- LLM Sandbox ---"
+      show_llm_hint
+      echo "Для остановки нажмите Ctrl+C"
+      echo
+      TRADING_MODE=sandbox LLM_ENABLED=true python main.py trade || true
+      read -rp "Нажмите Enter для возврата в меню..."
+      ;;
+    12)
+      clear
+      if confirm_production; then
+        echo "--- LLM Production ---"
+        show_llm_hint
+        echo "Для остановки нажмите Ctrl+C"
+        echo
+        TRADING_MODE=production LLM_ENABLED=true python main.py trade || true
+      else
+        echo "Отменено."
+        sleep 1
+      fi
+      read -rp "Нажмите Enter для возврата в меню..."
+      ;;
+    13)
+      clear
+      echo "--- LLM Auto Sandbox ---"
+      show_llm_hint
+      echo "Для остановки нажмите Ctrl+C"
+      echo
+      TRADING_MODE=sandbox LLM_ENABLED=true python main.py auto || true
+      read -rp "Нажмите Enter для возврата в меню..."
+      ;;
+    14)
+      clear
+      if confirm_production; then
+        echo "--- LLM Auto Production ---"
+        show_llm_hint
+        echo "Для остановки нажмите Ctrl+C"
+        echo
+        TRADING_MODE=production LLM_ENABLED=true python main.py auto || true
+      else
+        echo "Отменено."
+        sleep 1
+      fi
+      read -rp "Нажмите Enter для возврата в меню..."
       ;;
     0)
       echo "Выход."

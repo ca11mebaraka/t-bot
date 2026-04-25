@@ -17,6 +17,7 @@ class Signal:
     instrument_id: str
     price: Decimal
     reason: str
+    lots: Optional[int] = None
 
 
 class BaseStrategy(ABC):

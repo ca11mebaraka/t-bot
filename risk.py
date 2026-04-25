@@ -63,6 +63,7 @@ class DailyRiskManager:
         self._state: DailyRiskState = self._make_state()
         # FIFO книга позиций: figi -> deque[(price_per_share, total_shares)]
         self._book: dict[str, deque[tuple[Decimal, int]]] = {}
+        self.history_loaded = False
 
     # ── внутренние методы ─────────────────────────────────────────────────────
 
@@ -79,7 +80,6 @@ class DailyRiskManager:
                 self._state.net_result,
             )
             self._state = self._make_state()
-            self._book.clear()
 
     def _fifo_close(self, figi: str, sell_price: Decimal, shares: int) -> Decimal:
         """
@@ -118,6 +118,17 @@ class DailyRiskManager:
 
     # ── публичный API ─────────────────────────────────────────────────────────
 
+    def seed_buy(self, figi: str, shares: int, price_per_share: Decimal) -> None:
+        """Добавляет историческую покупку в FIFO без влияния на дневной риск."""
+        if shares > 0:
+            self._book.setdefault(figi, deque()).append((price_per_share, shares))
+
+    def seed_sell(self, figi: str, shares: int, price_per_share: Decimal) -> Decimal:
+        """Закрывает историческую продажу в FIFO без влияния на дневной риск."""
+        if shares <= 0:
+            return Decimal(0)
+        return self._fifo_close(figi, price_per_share, shares)
+
     def can_trade(self) -> tuple[bool, str]:
         """
         Вызвать перед каждой сделкой.
@@ -136,6 +147,7 @@ class DailyRiskManager:
         price_per_share: Decimal,
         lot_size: int,
         commission: Decimal,
+        timestamp: Optional[datetime] = None,
     ) -> None:
         """Регистрирует исполненную покупку."""
         self._ensure_today()
@@ -144,7 +156,7 @@ class DailyRiskManager:
         self._state.total_commissions += commission
         self._state.trades.append(
             TradeRecord(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=timestamp or datetime.now(timezone.utc),
                 figi=figi, direction="BUY",
                 lots=lots, price_per_share=price_per_share,
                 commission=commission,
@@ -166,6 +178,7 @@ class DailyRiskManager:
         price_per_share: Decimal,
         lot_size: int,
         commission: Decimal,
+        timestamp: Optional[datetime] = None,
     ) -> Decimal:
         """
         Регистрирует исполненную продажу.
@@ -178,7 +191,7 @@ class DailyRiskManager:
         self._state.total_commissions += commission
         self._state.trades.append(
             TradeRecord(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=timestamp or datetime.now(timezone.utc),
                 figi=figi, direction="SELL",
                 lots=lots, price_per_share=price_per_share,
                 commission=commission, realized_pnl=realized,
@@ -193,6 +206,18 @@ class DailyRiskManager:
         )
         self._check_limit()
         return realized
+
+    def record_commission(self, commission: Decimal) -> None:
+        """Регистрирует комиссию, пришедшую отдельной операцией API."""
+        self._ensure_today()
+        self._state.total_commissions += commission
+        logger.info(
+            "[Риск] Комиссия %.4f | день P&L: %+.4f | до лимита: %.4f",
+            commission,
+            self._state.net_result,
+            self.max_daily_loss + self._state.net_result,
+        )
+        self._check_limit()
 
     def status_line(self) -> str:
         """Однострочный статус для периодического логирования."""

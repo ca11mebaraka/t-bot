@@ -1,0 +1,7 @@
+.env
+.env.*
+.trading_control.json
+__pycache__/
+*.py[cod]
+.venv/
+reports/*.csv

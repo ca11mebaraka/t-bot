@@ -100,6 +100,41 @@ else
   info "Файл .env уже существует."
 fi
 
+# ── Обновление .env для новых LLM-настроек ───────────────────────────────────
+ensure_env_key() {
+  local key="$1"
+  local value="$2"
+  if [[ -f ".env" ]] && ! grep -q "^${key}=" .env 2>/dev/null; then
+    printf "%s=%s\n" "$key" "$value" >> .env
+  fi
+}
+
+if [[ -f ".env" ]]; then
+  ensure_env_key "RISK_HISTORY_DAYS" "365"
+  ensure_env_key "LLM_ENABLED" "false"
+  ensure_env_key "LLM_PROVIDER" "openai"
+  ensure_env_key "LLM_MODEL" ""
+  ensure_env_key "LLM_API_KEY" ""
+  ensure_env_key "OPENAI_API_KEY" ""
+  ensure_env_key "DEEPSEEK_API_KEY" ""
+  ensure_env_key "QWEN_API_KEY" ""
+  ensure_env_key "GIGACHAT_API_KEY" ""
+  ensure_env_key "ANTHROPIC_API_KEY" ""
+  ensure_env_key "OPENROUTER_API_KEY" ""
+  ensure_env_key "LLM_BASE_URL" ""
+  ensure_env_key "LLM_TIMEOUT" "30"
+  ensure_env_key "LLM_DECISION_INTERVAL" "300"
+  ensure_env_key "LLM_UNIVERSE_LIMIT" "40"
+  ensure_env_key "LLM_MAX_TICKERS" "8"
+  ensure_env_key "LLM_MAX_LOTS" "1"
+  ensure_env_key "LLM_SHOW_PROMPTS" "true"
+  ensure_env_key "LLM_MOCK_RESPONSE" ""
+  ensure_env_key "AGGRESSION_LEVEL" "3"
+  ensure_env_key "AGGRESSION_MIN_INTERVAL" "20"
+  ensure_env_key "AGGRESSION_CONTROL_FILE" ".trading_control.json"
+  ok "LLM-настройки в .env проверены."
+fi
+
 # ── Директория отчётов ───────────────────────────────────────────────────────
 mkdir -p reports
 
@@ -120,4 +155,9 @@ echo "  2. Замените 'your_token_here' на токен T-Инвестиц
 echo "     (Приложение T-Банк → Профиль → Настройки → Токены API)"
 echo "  3. Запустите бота:"
 echo "       ./run.sh"
+echo "  4. Для LLM-режима заполните в .env:"
+echo "       LLM_PROVIDER, LLM_MODEL и API key выбранного провайдера"
+echo "     Затем используйте пункты 10-14 в ./run.sh"
+echo "  5. Во время сессии меняйте агрессивность:"
+echo "       + Enter / - Enter  или  AGGRESSION_CONTROL_FILE"
 echo

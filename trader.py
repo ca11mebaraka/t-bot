@@ -8,19 +8,23 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Optional
 
-from tinkoff.invest import CandleInterval, OrderDirection
-from tinkoff.invest.utils import now
+from t_tech.invest import CandleInterval, OrderDirection
+from t_tech.invest.utils import now
 
+from aggression import AggressionController
 from client import (
     get_client,
     resolve_account_id,
     quotation_to_decimal,
     money_value_to_decimal,
     place_market_order,
+    get_order_commission,
     place_stop_orders,
 )
 from config import Config
+from llm_trading import LLMTradingController
 from risk import DailyRiskManager
+from risk_history import hydrate_risk_from_operations
 from strategies import BaseStrategy, MACrossoverStrategy, RSIStrategy, Signal, SignalType
 
 logger = logging.getLogger(__name__)
@@ -92,17 +96,29 @@ def _execute_signal(
     )
 
     try:
+        quantity = signal.lots or config.max_lots
         response = place_market_order(
             client,
             account_id=account_id,
             instrument_id=signal.instrument_id,
             direction=direction,
-            quantity=config.max_lots,
+            quantity=quantity,
+            is_sandbox=config.is_sandbox,
         )
 
         executed_price = quotation_to_decimal(response.executed_order_price)
         commission = money_value_to_decimal(response.executed_commission)
-        lots_done = response.lots_executed or config.max_lots
+        if commission == 0:
+            commission = money_value_to_decimal(response.initial_commission)
+        if commission == 0:
+            commission = get_order_commission(
+                client=client,
+                account_id=account_id,
+                order_id=response.order_id,
+                instrument_id=signal.instrument_id,
+                is_sandbox=config.is_sandbox,
+            )
+        lots_done = response.lots_executed or quantity
 
         logger.info(
             "Заявка исполнена: %s %s по %.4f | лоты: %d | комиссия: %.4f",
@@ -185,6 +201,16 @@ def run_trading_loop(
     with get_client(config) as client:
         account_id = resolve_account_id(client, config)
         logger.info("Счёт: %s | Режим: %s", account_id, config.mode)
+        aggression = AggressionController(config)
+        logger.info("Текущий уровень агрессивности: %s", aggression.describe())
+        logger.info(
+            "Управление агрессивностью во время сессии: введите '+' или '-' и нажмите Enter; "
+            "или измените %s",
+            config.aggression_control_file,
+        )
+
+        if risk is not None:
+            hydrate_risk_from_operations(risk, client, account_id, config)
 
         instruments_info: dict[str, dict] = {}
         for figi in config.instruments:
@@ -196,21 +222,35 @@ def run_trading_loop(
                 logger.warning("Не удалось получить info для %s: %s", figi, exc)
                 instruments_info[figi] = {"lot": 1, "min_price_increment": Decimal("0.01")}
 
-        strategies = build_strategies(config)
-        warm_up_strategies(client, strategies)
+        strategies: dict[str, list[BaseStrategy]] = {}
+        if not config.llm_enabled:
+            strategies = build_strategies(config)
+            warm_up_strategies(client, strategies)
 
         if risk is not None:
             logger.info("Риск-менеджер активен. Лимит: -%s в день", risk.max_daily_loss)
+
+        llm_controller = LLMTradingController(config) if config.llm_enabled else None
+        if llm_controller is not None:
+            logger.info(
+                "LLM-режим активен: provider=%s model=%s interval=%ds",
+                config.llm_provider,
+                config.llm_model or "default",
+                config.llm_decision_interval,
+            )
 
         logger.info("Торговый цикл запущен. Интервал: %ds", config.check_interval)
 
         last_status_ts = time.monotonic()
 
         while True:
+            aggression.poll()
+
             # ── периодический лог статуса ─────────────────────────────────────
             if risk is not None and config.status_interval > 0:
                 if time.monotonic() - last_status_ts >= config.status_interval:
                     logger.info(risk.status_line())
+                    logger.info("Текущий уровень агрессивности: %s", aggression.describe())
                     last_status_ts = time.monotonic()
 
             # ── если лимит достигнут — пропускаем торговлю, ждём нового дня ──
@@ -220,6 +260,31 @@ def run_trading_loop(
                     logger.debug("Торговля остановлена: %s. Ожидание...", reason)
                     time.sleep(_HALTED_POLL_INTERVAL)
                     continue
+
+            if llm_controller is not None:
+                try:
+                    decisions = llm_controller.make_decisions(client, account_id, risk, aggression)
+                    for signal, candidate in decisions:
+                        logger.info(
+                            "[LLM] Сигнал %s: %s (цена %.4f, лоты %d)",
+                            signal.type.value,
+                            signal.reason,
+                            candidate.price,
+                            signal.lots or config.max_lots,
+                        )
+                        _execute_signal(
+                            client,
+                            account_id,
+                            signal,
+                            config,
+                            candidate.min_price_increment,
+                            candidate.lot,
+                            risk,
+                        )
+                except Exception as exc:
+                    logger.error("Ошибка LLM-цикла: %s", exc, exc_info=True)
+                time.sleep(aggression.llm_interval())
+                continue
 
             # ── основной торговый проход ──────────────────────────────────────
             for figi, strat_list in strategies.items():
@@ -235,16 +300,22 @@ def run_trading_loop(
                 for strat in strat_list:
                     signal = strat.update(price)
                     if signal is not None:
+                        signal.lots = aggression.max_lots(config.max_lots)
                         logger.info(
-                            "[%s] Сигнал %s: %s (цена %.4f)",
-                            strat.name, signal.type.value, signal.reason, price,
+                            "[%s] Сигнал %s: %s (цена %.4f, лоты %d, %s)",
+                            strat.name,
+                            signal.type.value,
+                            signal.reason,
+                            price,
+                            signal.lots,
+                            aggression.describe(),
                         )
                         _execute_signal(
                             client, account_id, signal, config,
                             price_step, lot_size, risk,
                         )
 
-            time.sleep(config.check_interval)
+            time.sleep(aggression.check_interval())
 
 
 def run_auto_loop(config: Config, risk: DailyRiskManager) -> None:

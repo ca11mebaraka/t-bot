@@ -12,7 +12,6 @@
 import argparse
 import logging
 import sys
-from decimal import Decimal
 from typing import Optional
 
 from config import Config
@@ -25,6 +24,7 @@ from reports import (
     save_operations_csv,
 )
 from risk import DailyRiskManager
+from risk_history import hydrate_risk_from_operations
 from trader import run_trading_loop, run_auto_loop
 
 logging.basicConfig(
@@ -52,10 +52,9 @@ def _build_risk_manager(config: Config) -> Optional[DailyRiskManager]:
 def _patch_dry_run() -> None:
     """Подменяет place_market_order заглушкой для dry-run."""
     import client as client_module
-    from decimal import Decimal as _D
 
     def _fake_order(*a, **kw):
-        from tinkoff.invest import PostOrderResponse, Quotation, MoneyValue
+        from t_tech.invest import PostOrderResponse, Quotation, MoneyValue
         logger.info("[DRY-RUN] Заявка НЕ выставлена")
         resp = PostOrderResponse()
         resp.executed_order_price.CopyFrom(Quotation(units=0, nano=0))
@@ -152,50 +151,13 @@ def cmd_risk_status(config: Config, args: argparse.Namespace) -> None:
         print("MAX_DAILY_LOSS не задан в .env.")
         return
 
-    from datetime import timedelta
-    from tinkoff.invest.utils import now
-    from tinkoff.invest import OperationType
-    from client import get_client, resolve_account_id, money_value_to_decimal
+    from client import get_client, resolve_account_id
 
     risk = DailyRiskManager(max_daily_loss=config.max_daily_loss)
 
     with get_client(config) as client:
         account_id = resolve_account_id(client, config)
-
-        if config.is_sandbox:
-            ops = client.sandbox.get_sandbox_operations(
-                account_id=account_id,
-                from_=now() - timedelta(days=1),
-                to=now(),
-            ).operations
-        else:
-            ops = client.operations.get_operations(
-                account_id=account_id,
-                from_=now() - timedelta(days=1),
-                to=now(),
-            ).operations
-
-        today_str = __import__("datetime").date.today().isoformat()
-
-        for op in ops:
-            if op.date.strftime("%Y-%m-%d") != today_str:
-                continue
-
-            price = money_value_to_decimal(op.price)
-            commission = money_value_to_decimal(op.commission) if op.commission else Decimal(0)
-
-            try:
-                info = client.instruments.get_instrument_by(id_type=1, id=op.figi).instrument
-                lot_size = info.lot
-            except Exception:
-                lot_size = 1
-
-            if op.operation_type == OperationType.OPERATION_TYPE_BUY and op.quantity > 0:
-                lots = op.quantity // lot_size or 1
-                risk.record_buy(op.figi, lots, price, lot_size, abs(commission))
-            elif op.operation_type == OperationType.OPERATION_TYPE_SELL and op.quantity > 0:
-                lots = op.quantity // lot_size or 1
-                risk.record_sell(op.figi, lots, price, lot_size, abs(commission))
+        hydrate_risk_from_operations(risk, client, account_id, config)
 
     print(risk.daily_summary())
 

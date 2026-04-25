@@ -7,8 +7,8 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
-from tinkoff.invest import OperationType
-from tinkoff.invest.utils import now
+from t_tech.invest import OperationType
+from t_tech.invest.utils import now
 
 from client import get_client, resolve_account_id, money_value_to_decimal, quotation_to_decimal
 from config import Config
