@@ -1,0 +1,4 @@
+tinkoff-investments>=0.2.0b118
+python-dotenv>=1.0.0
+pandas>=2.0.0
+tabulate>=0.9.0
