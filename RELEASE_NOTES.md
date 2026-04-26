@@ -1,5 +1,18 @@
 # Release Notes
 
+## 1.1.1 - 2026-04-26
+
+### Changed
+
+- Updated `run.bat` to match the Unix launcher menu, including LLM dry-run, sandbox, production and auto modes.
+- Updated `setup.bat` to append missing LLM, risk history, OpenRouter `LLM_SESSION_ID` and aggression settings to an existing `.env`.
+- Windows setup now creates both `reports/` and `logs/` directories.
+- Documentation now includes Windows launch instructions for `setup.bat` and `run.bat`.
+
+### Fixed
+
+- Added `*.env` to `.gitignore` so local files such as `aaa.env` are not accidentally committed.
+
 ## 1.1.0 - 2026-04-26
 
 ### Added

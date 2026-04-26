@@ -421,6 +421,16 @@ python main.py trade --dry-run
 python main.py trade
 ```
 
+`setup.bat` поддерживает существующий `.env`: если после обновления проекта появились новые настройки (`LLM_SESSION_ID`, `AGGRESSION_LEVEL`, `LLM_MAX_TICKERS` и другие), скрипт добавит отсутствующие ключи с безопасными значениями по умолчанию.
+
+`run.bat` повторяет основное меню `run.sh`, включая LLM-пункты:
+
+- `10` — LLM dry-run без сделок;
+- `11` — LLM Sandbox;
+- `12` — LLM Production;
+- `13` — LLM Auto Sandbox;
+- `14` — LLM Auto Production.
+
 ### Аргументы CLI
 
 ```

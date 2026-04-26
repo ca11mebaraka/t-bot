@@ -1,5 +1,6 @@
 .env
 .env.*
+*.env
 .trading_control.json
 __pycache__/
 *.py[cod]
