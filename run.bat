@@ -21,6 +21,11 @@ if not exist ".env" (
 
 call .venv\Scripts\activate.bat
 
+:: UTF-8 для красивого логгера. Цвета включаются Python-кодом только если консоль поддерживает ANSI.
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "T_BOT_LOG_STYLE=auto"
+
 findstr /c:"your_token_here" ".env" >nul 2>&1
 if not errorlevel 1 (
     echo [ПРЕДУПРЕЖДЕНИЕ] В .env стоит токен-заглушка.

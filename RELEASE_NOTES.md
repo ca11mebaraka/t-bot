@@ -1,5 +1,17 @@
 # Release Notes
 
+## 1.1.2 - 2026-04-26
+
+### Fixed
+
+- Fixed Windows terminal aggression control by replacing `select.select(sys.stdin)` with `msvcrt` polling.
+- Fixed raw ANSI escape codes in Windows logs by removing forced color mode from `run.bat`.
+- Added Windows console ANSI detection with automatic ASCII pseudo-graphics fallback when colors are unsupported.
+
+### Changed
+
+- `run.bat` now enables UTF-8 for Python output and lets `pretty_logging.py` decide whether colored Unicode output is safe.
+
 ## 1.1.1 - 2026-04-26
 
 ### Changed

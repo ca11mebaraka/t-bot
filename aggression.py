@@ -10,6 +10,7 @@ Control file:
 """
 import json
 import logging
+import os
 import select
 import sys
 from dataclasses import dataclass
@@ -103,10 +104,25 @@ class AggressionController:
     def _poll_stdin(self) -> bool:
         if not sys.stdin.isatty():
             return False
+        if os.name == "nt":
+            return self._poll_windows_stdin()
         readable, _, _ = select.select([sys.stdin], [], [], 0)
         if not readable:
             return False
         command = sys.stdin.readline().strip()
+        return self._handle_terminal_command(command)
+
+    def _poll_windows_stdin(self) -> bool:
+        try:
+            import msvcrt
+        except ImportError:
+            return False
+        if not msvcrt.kbhit():
+            return False
+        command = msvcrt.getwch().strip()
+        return self._handle_terminal_command(command)
+
+    def _handle_terminal_command(self, command: str) -> bool:
         if command == "+":
             return self.increase()
         if command == "-":

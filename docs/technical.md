@@ -431,6 +431,8 @@ python main.py trade
 - `13` — LLM Auto Sandbox;
 - `14` — LLM Auto Production.
 
+На Windows `run.bat` включает `PYTHONUTF8=1` и `PYTHONIOENCODING=utf-8`. Цвета и Unicode-псевдографика включаются только после проверки поддержки ANSI в консоли; если терминал не поддерживает ANSI, `pretty_logging.py` переключается на ASCII-псевдографику без escape-кодов. Интерактивное изменение агрессивности использует `msvcrt`, потому что `select.select()` на Windows работает только с сокетами.
+
 ### Аргументы CLI
 
 ```
