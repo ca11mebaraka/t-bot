@@ -211,6 +211,7 @@ class DailyRiskManager:
         """Регистрирует комиссию, пришедшую отдельной операцией API."""
         self._ensure_today()
         self._state.total_commissions += commission
+        self._attach_commission_to_latest_trade(commission)
         logger.info(
             "[Риск] Комиссия %.4f | день P&L: %+.4f | до лимита: %.4f",
             commission,
@@ -218,6 +219,15 @@ class DailyRiskManager:
             self.max_daily_loss + self._state.net_result,
         )
         self._check_limit()
+
+    def _attach_commission_to_latest_trade(self, commission: Decimal) -> None:
+        """Adds a separate broker fee to the latest trade for readable summaries."""
+        if commission <= 0:
+            return
+        for trade in reversed(self._state.trades):
+            if trade.commission == 0:
+                trade.commission += commission
+                return
 
     def status_line(self) -> str:
         """Однострочный статус для периодического логирования."""

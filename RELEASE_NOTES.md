@@ -1,5 +1,15 @@
 # Release Notes
 
+## 1.1.3 - 2026-04-26
+
+### Fixed
+
+- Daily trade summaries now attach separate broker fee operations to the latest matching trade, so per-trade commission lines no longer show `-0.0000` when total commissions are non-zero.
+
+### Added
+
+- Regression test for displaying separately reported broker commissions in risk summaries.
+
 ## 1.1.2 - 2026-04-26
 
 ### Fixed
