@@ -2,15 +2,20 @@
 
 Автоматический торговый бот для T-Invest с rule-based стратегиями, риск-менеджером, отчётами и опциональным управлением через LLM.
 
+Текущая версия: `1.1.0`.
+
 ## Возможности
 
 - Подключение к T-Invest Sandbox и Production API.
 - Стратегии MA Crossover и RSI.
-- LLM Trading Control: модель выбирает тикеры, `BUY`/`SELL`/`HOLD` и размер заявки.
+- LLM Trading Control: модель выбирает тикеры, стратегию, параметры, `BUY`/`SELL`/`HOLD` и размер заявки.
 - Поддержка OpenAI, DeepSeek, Qwen, GigaChat, Anthropic и OpenRouter.
+- OpenRouter `session_id` для стабильной сессии запросов.
+- Strategy Toolkit для LLM: market regime, deterministic strategies, pair trading и quick backtests.
 - FIFO риск-менеджер с дневным лимитом убытка и учётом комиссий.
 - Восстановление дневного риска и FIFO-базиса из истории операций.
 - Оперативное изменение агрессивности во время сессии.
+- Человекочитаемые цветные консольные логи с псевдографикой.
 - Отчёты по портфелю и операциям с CSV-экспортом.
 
 ## Быстрый старт
@@ -57,6 +62,7 @@ LLM_UNIVERSE_LIMIT=20
 LLM_MAX_TICKERS=20
 LLM_MAX_LOTS=1
 LLM_DECISION_INTERVAL=20
+LLM_SESSION_ID=t-bot-trading
 LLM_SHOW_PROMPTS=true
 ```
 
@@ -70,6 +76,32 @@ LLM_SHOW_PROMPTS=true
 - `openrouter`
 
 LLM получает рыночный shortlist, позиции, дневной FIFO P&L, комиссии, остаток риска и текущую агрессивность. Ответ модели валидируется локально: бот не продаёт без позиции, не превышает лимиты и не торгует при остановке risk-manager.
+
+Для `LLM_PROVIDER=openrouter` бот добавляет `session_id` в JSON-запрос. Значение берётся из `LLM_SESSION_ID`.
+
+### Strategy Toolkit для LLM
+
+LLM-оркестратор получает результаты детерминированных стратегий как emulated tools в prompt context:
+
+- `list_strategies`
+- `get_market_regime`
+- `run_strategy`
+- `run_strategy_pair`
+- `backtest_strategy`
+
+Стратегии не принимают финальных торговых решений. Они считают сигнал, confidence и индикаторы; LLM выбирает стратегию, корректирует параметры и объясняет решение в audit trail.
+
+Доступные стратегии:
+
+- `trend_following`
+- `mean_reversion`
+- `breakout`
+- `stat_arb`
+- `ml`
+
+Параметры по умолчанию находятся в `config/strategies.yaml`.
+Решения LLM пишутся в `logs/decisions/decisions_YYYY-MM-DD.jsonl`.
+Индикаторы реализованы локально в `strategies/indicators.py`; `pandas-ta` не является обязательной зависимостью, потому что на Python 3.14 его транзитивная зависимость `numba` пока не устанавливается.
 
 ## Меню запуска
 
@@ -117,7 +149,16 @@ AGGRESSION_CONTROL_FILE=.trading_control.json
 }
 ```
 
-Уровень `1..5` влияет на размер заявки, интервал следующего цикла и число исполняемых LLM-решений.
+Уровень `1..5` влияет на размер заявки и интервал следующего цикла. Количество тикеров в LLM-анализе задаётся `LLM_MAX_TICKERS`, чтобы обзор рынка оставался широким даже на осторожной агрессивности.
+
+## Консольные логи
+
+Экранные сообщения форматируются для человека:
+
+- понятные источники: `Биржа`, `Торговля`, `Риск`, `LLM`, `T-Invest API`;
+- мягкие цвета и псевдографика в интерактивном терминале;
+- технические события SDK вроде `GetPortfolio` переводятся в действия вроде `загружаем портфель через T-Invest API`;
+- временные сетевые сбои T-Invest логируются коротко, после retry.
 
 ## CLI
 

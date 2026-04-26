@@ -128,7 +128,9 @@ class LLMClient:
         headers = {"Authorization": f"Bearer {self.api_key}"}
         if self.provider == "openrouter":
             headers["HTTP-Referer"] = "https://localhost/t-bot"
-            headers["X-Title"] = "T-Bot"
+            headers["X-OpenRouter-Title"] = "T-Bot"
+            if self.config.llm_session_id:
+                payload["session_id"] = self.config.llm_session_id
 
         raw = _json_post(
             f"{self.base_url}/chat/completions",

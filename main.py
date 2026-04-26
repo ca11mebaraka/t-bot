@@ -15,6 +15,7 @@ import sys
 from typing import Optional
 
 from config import Config
+from pretty_logging import setup_pretty_logging
 from portfolio import get_portfolio, get_operations, get_portfolio_balance
 from reports import (
     print_portfolio,
@@ -27,11 +28,7 @@ from risk import DailyRiskManager
 from risk_history import hydrate_risk_from_operations
 from trader import run_trading_loop, run_auto_loop
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+setup_pretty_logging(logging.INFO)
 logger = logging.getLogger(__name__)
 
 

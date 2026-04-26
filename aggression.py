@@ -66,8 +66,9 @@ class AggressionController:
         return max(1, min(self.config.max_lots, lots))
 
     def max_llm_decisions(self) -> int:
-        decisions = round(self.config.llm_max_tickers * self.profile.decision_multiplier)
-        return max(1, min(self.config.llm_max_tickers, decisions))
+        # Keep the LLM market review broad at every aggression level. Aggression still
+        # controls execution size and polling interval, not how many tickers are audited.
+        return max(1, self.config.llm_max_tickers)
 
     def llm_interval(self) -> int:
         interval = round(self.config.llm_decision_interval * self.profile.interval_multiplier)

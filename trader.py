@@ -8,7 +8,9 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Optional
 
+from grpc import StatusCode
 from t_tech.invest import CandleInterval, OrderDirection
+from t_tech.invest.exceptions import RequestError
 from t_tech.invest.utils import now
 
 from aggression import AggressionController
@@ -32,6 +34,11 @@ logger = logging.getLogger(__name__)
 # Сколько секунд ждать в auto-режиме после достижения дневного лимита
 # перед каждой следующей проверкой состояния
 _HALTED_POLL_INTERVAL = 60
+_TRANSIENT_API_CODES = {
+    StatusCode.UNAVAILABLE,
+    StatusCode.DEADLINE_EXCEEDED,
+    StatusCode.RESOURCE_EXHAUSTED,
+}
 
 
 def _load_candles(client, instrument_id: str, days: int = 30) -> list[Decimal]:
@@ -281,6 +288,16 @@ def run_trading_loop(
                             candidate.lot,
                             risk,
                         )
+                except RequestError as exc:
+                    if exc.code in _TRANSIENT_API_CODES:
+                        logger.warning(
+                            "Временная ошибка T-Invest API в LLM-цикле после retry: %s. "
+                            "Следующая попытка через %ds",
+                            exc.details,
+                            aggression.llm_interval(),
+                        )
+                    else:
+                        logger.error("Ошибка LLM-цикла: %s", exc, exc_info=True)
                 except Exception as exc:
                     logger.error("Ошибка LLM-цикла: %s", exc, exc_info=True)
                 time.sleep(aggression.llm_interval())

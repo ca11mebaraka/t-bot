@@ -67,9 +67,14 @@ def get_portfolio(config: Config) -> list[PositionSummary]:
         for pos in portfolio.positions:
             figi = pos.figi
             quantity = int(quotation_to_decimal(pos.quantity))
-            avg_price = money_value_to_decimal(pos.average_buy_price)
+            avg_money = (
+                getattr(pos, "average_buy_price", None)
+                or getattr(pos, "average_position_price_fifo", None)
+                or getattr(pos, "average_position_price", None)
+            )
+            avg_price = money_value_to_decimal(avg_money) if avg_money else Decimal(0)
             current_price = money_value_to_decimal(pos.current_price)
-            currency = pos.average_buy_price.currency
+            currency = getattr(avg_money, "currency", "") or getattr(pos.current_price, "currency", "")
 
             try:
                 info = client.instruments.get_instrument_by(id_type=1, id=figi).instrument

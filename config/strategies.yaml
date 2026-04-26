@@ -1,0 +1,49 @@
+trend_following:
+  fast_period: 50
+  slow_period: 200
+  ma_type: EMA
+  adx_period: 14
+  adx_threshold: 25
+  atr_multiplier: 2.0
+
+mean_reversion:
+  bb_period: 20
+  bb_std: 2.0
+  rsi_period: 14
+  rsi_oversold: 30
+  rsi_overbought: 70
+  adf_pvalue_threshold: 0.05
+  z_score_threshold: 2.0
+
+stat_arb:
+  lookback_period: 60
+  z_entry_threshold: 2.0
+  z_exit_threshold: 0.5
+  cointegration_pvalue: 0.05
+  rebalance_every_n_bars: 20
+
+breakout:
+  pivot_lookback: 20
+  volume_ma_period: 50
+  volume_surge_ratio: 1.10
+  bb_squeeze_threshold: 0.02
+  atr_stop_multiplier: 1.5
+  momentum_confirmation_bars: 3
+
+ml:
+  mode: sklearn
+  sequence_length: 60
+  confidence_threshold: 0.65
+  retrain_every_n_bars: 100
+  train_size_bars: 500
+  features:
+    - returns_1d
+    - returns_5d
+    - rsi_14
+    - macd
+    - macd_signal
+    - atr_14
+    - bb_pct_b
+    - obv_normalized
+    - volume_ratio
+  sklearn_model: GradientBoosting
